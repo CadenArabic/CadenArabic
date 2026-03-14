@@ -10,9 +10,9 @@ html {
 
 body {
   background:
-    radial-gradient(circle at top, rgba(34, 211, 238, 0.18), transparent 28%),
-    radial-gradient(circle at bottom, rgba(37, 99, 235, 0.14), transparent 34%),
-    linear-gradient(180deg, #020617 0%, #031525 45%, #020617 100%);
+    radial-gradient(circle at top, rgba(34, 211, 238, 0.12), transparent 24%),
+    radial-gradient(circle at bottom, rgba(37, 99, 235, 0.1), transparent 30%),
+    linear-gradient(180deg, #020617 0%, #04111f 48%, #020617 100%);
 }
 
 body,
@@ -29,28 +29,28 @@ body,
 
 .scene-backdrop {
   background:
-    radial-gradient(circle at 20% 20%, rgba(6, 182, 212, 0.08), transparent 26%),
-    radial-gradient(circle at 82% 24%, rgba(99, 102, 241, 0.12), transparent 30%),
-    radial-gradient(circle at 50% 82%, rgba(139, 92, 246, 0.08), transparent 32%);
+    radial-gradient(circle at 18% 18%, rgba(34, 211, 238, 0.08), transparent 24%),
+    radial-gradient(circle at 84% 20%, rgba(59, 130, 246, 0.12), transparent 28%),
+    radial-gradient(circle at 50% 88%, rgba(14, 165, 233, 0.08), transparent 30%);
 }
 
 .scene-vignette {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at center, transparent 38%, rgba(2, 6, 23, 0.45) 72%, rgba(2, 6, 23, 0.88) 100%);
+    radial-gradient(circle at center, transparent 26%, rgba(2, 6, 23, 0.26) 68%, rgba(2, 6, 23, 0.82) 100%);
 }
 
 .scene-grid {
   position: absolute;
-  inset: -8%;
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: 78px 78px;
-  mask-image: radial-gradient(circle at center, black 45%, transparent 92%);
-  opacity: 0.32;
-  transform: translate3d(calc(var(--pointer-shift-x) * -0.14), calc(var(--pointer-shift-y) * -0.14), 0);
+  inset: 0;
+  background-size: 40px 40px;
+  background-image:
+    linear-gradient(to right, rgba(148, 163, 184, 0.14) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.14) 1px, transparent 1px);
+  mask-image: radial-gradient(ellipse at center, transparent 18%, black 78%);
+  opacity: 0.46;
+  transform: translate3d(calc(var(--pointer-shift-x) * -0.08), calc(var(--pointer-shift-y) * -0.08), 0);
 }
 
 .scene-noise {
@@ -215,8 +215,7 @@ body,
 }
 
 .beam-field,
-.particle-field,
-.cube-field {
+.particle-field {
   position: absolute;
   inset: 0;
   pointer-events: none;
@@ -249,70 +248,111 @@ body,
   animation: particleRise linear infinite;
 }
 
-.cube-field {
-  perspective: 1400px;
-  transform: translate3d(calc(var(--pointer-shift-x) * 0.2), calc(var(--pointer-shift-y) * 0.2), 0);
+.content-with-beam {
+  position: relative;
+  z-index: 1;
 }
 
-.cube {
+ .page-tracing-beam {
+  --beam-progress: 0;
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  right: max(-2.4rem, calc((100vw - 72rem) / 2 - 2.4rem));
+  width: 1.6rem;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.page-tracing-beam__rail {
   position: absolute;
-  border-radius: 1rem;
-  border: 1px solid rgba(103, 232, 249, 0.22);
-  background: linear-gradient(145deg, rgba(34, 211, 238, 0.18), rgba(99, 102, 241, 0.08));
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
-    0 20px 60px rgba(6, 182, 212, 0.1),
-    0 0 32px rgba(56, 189, 248, 0.06);
-  backdrop-filter: blur(8px);
-  transform-style: preserve-3d;
-  animation: cubeFloat linear infinite;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, rgba(34, 211, 238, 0.03), rgba(125, 211, 252, 0.18), rgba(59, 130, 246, 0.06));
 }
 
-.cube::before,
-.cube::after {
-  content: "";
+.page-tracing-beam__glow {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--beam-progress) * (100% - 6rem));
+  width: 0.42rem;
+  height: 6rem;
+  transform: translateX(-50%);
+  border-radius: 9999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(103, 232, 249, 0.72) 28%, rgba(59, 130, 246, 0.52) 68%, rgba(255, 255, 255, 0));
+  box-shadow:
+    0 0 10px rgba(103, 232, 249, 0.2),
+    0 0 18px rgba(59, 130, 246, 0.1);
+  filter: blur(0.15px);
+}
+
+.comet-card {
+  --comet-x: 50%;
+  --comet-y: 50%;
+  --comet-rotate-x: 0deg;
+  --comet-rotate-y: 0deg;
+  --comet-opacity: 0;
+  perspective: 1400px;
+}
+
+.comet-card__inner {
+  height: 100%;
+  transform-style: preserve-3d;
+  transition:
+    transform 260ms ease,
+    filter 260ms ease;
+  transform: rotateX(var(--comet-rotate-x)) rotateY(var(--comet-rotate-y));
+  filter: saturate(1.02);
+}
+
+.comet-card:hover .comet-card__inner {
+  filter: saturate(1.08);
+}
+
+.comet-card__gradient,
+.comet-card__glow,
+.comet-card__trail {
   position: absolute;
   inset: 0;
   border-radius: inherit;
+  pointer-events: none;
 }
 
-.cube::before {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  transform: translateZ(28px);
+.comet-card__gradient {
+  background:
+    radial-gradient(circle at var(--comet-x) var(--comet-y), rgba(255, 255, 255, 0.12), transparent 20%),
+    linear-gradient(145deg, rgba(34, 211, 238, 0.08), rgba(59, 130, 246, 0.02) 45%, rgba(125, 211, 252, 0.08));
+  mix-blend-mode: screen;
+  opacity: calc(var(--comet-opacity) * 0.8);
+  transition: opacity 220ms ease;
 }
 
-.cube::after {
-  inset: 16%;
-  border-radius: 0.7rem;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.02));
-  opacity: 0.9;
+.comet-card__glow {
+  inset: -1px;
+  background: radial-gradient(circle at var(--comet-x) var(--comet-y), rgba(103, 232, 249, 0.18), transparent 36%);
+  filter: blur(24px);
+  opacity: calc(var(--comet-opacity) * 0.95);
+  transition: opacity 220ms ease;
 }
 
-@keyframes cubeFloat {
-  0% {
-    transform: translate3d(0, 0, -40px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(0.92);
-    opacity: 0.14;
-  }
-  20% {
-    transform: translate3d(42px, -48px, 80px) rotateX(88deg) rotateY(105deg) rotateZ(30deg) scale(1);
-    opacity: 0.32;
-  }
-  40% {
-    transform: translate3d(-18px, -120px, 110px) rotateX(180deg) rotateY(210deg) rotateZ(80deg) scale(1.08);
-    opacity: 0.24;
-  }
-  60% {
-    transform: translate3d(58px, -168px, 90px) rotateX(260deg) rotateY(290deg) rotateZ(128deg) scale(1.02);
-    opacity: 0.31;
-  }
-  80% {
-    transform: translate3d(-24px, -220px, 24px) rotateX(320deg) rotateY(330deg) rotateZ(160deg) scale(0.95);
-    opacity: 0.18;
-  }
-  100% {
-    transform: translate3d(10px, -280px, -46px) rotateX(360deg) rotateY(360deg) rotateZ(198deg) scale(0.88);
-    opacity: 0.08;
-  }
+.comet-card__trail {
+  background: linear-gradient(120deg, transparent 10%, rgba(255, 255, 255, 0.04) 36%, rgba(103, 232, 249, 0.14) 50%, rgba(59, 130, 246, 0.08) 58%, transparent 84%);
+  transform: translate3d(-24%, -24%, 0) rotate(10deg);
+  opacity: calc(var(--comet-opacity) * 0.95);
+  transition:
+    opacity 220ms ease,
+    transform 260ms ease;
+}
+
+.comet-card:hover .comet-card__trail {
+  transform: translate3d(6%, 6%, 0) rotate(10deg);
+}
+
+.comet-card__content {
+  transform: translateZ(0);
 }
 
 @keyframes particleRise {
@@ -467,12 +507,12 @@ body,
 .stats-strip__item::before {
   content: "";
   position: absolute;
-  inset: -28%;
+  inset: -20%;
   background:
-    radial-gradient(circle at 50% 55%, rgba(34, 211, 238, 0.22), transparent 34%),
-    radial-gradient(circle at 62% 42%, rgba(59, 130, 246, 0.18), transparent 42%);
-  filter: blur(26px);
-  opacity: 0.95;
+    radial-gradient(circle at 50% 55%, rgba(34, 211, 238, 0.1), transparent 34%),
+    radial-gradient(circle at 62% 42%, rgba(59, 130, 246, 0.08), transparent 42%);
+  filter: blur(22px);
+  opacity: 0.75;
   pointer-events: none;
 }
 
@@ -564,7 +604,7 @@ body,
 .hero-focus-card {
   position: relative;
   overflow: hidden;
-  min-height: 7.5rem;
+  min-height: 7.75rem;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.05),
     0 16px 44px rgba(8, 145, 178, 0.12);
@@ -706,12 +746,17 @@ body,
   }
 }
 
+@media (max-width: 900px) {
+  .page-tracing-beam {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
   }
 
-  .cube,
   .particle,
   .beam,
   .ring,
@@ -726,8 +771,7 @@ body,
   .cursor-light--soft,
   .scene-grid,
   .particle-field,
-  .beam-field,
-  .cube-field {
+  .beam-field {
     transform: none;
   }
 
@@ -737,12 +781,32 @@ body,
     opacity: 0.55;
   }
 
+  .page-tracing-beam__glow {
+    top: 30%;
+  }
+
   .game-card,
   .game-thumb,
   .nav-link,
   .hero-badge,
   .skill-pill,
-  .button-hover {
+  .button-hover,
+  .comet-card__inner,
+  .comet-card__gradient,
+  .comet-card__glow,
+  .comet-card__trail {
     transition: none;
+  }
+
+  .comet-card__inner,
+  .comet-card:hover .comet-card__inner,
+  .comet-card:hover .comet-card__trail {
+    transform: none;
+  }
+
+  .comet-card__gradient,
+  .comet-card__glow,
+  .comet-card__trail {
+    opacity: 0;
   }
 }

@@ -10,8 +10,6 @@ const __dirname = path.dirname(__filename);
 
 // https://vite.dev/config/
 export default defineConfig({
-  // REPLACE 'your-repo-name' with the actual name of your GitHub repository
-  base: '/CadenArabic/', 
   plugins: [react(), tailwindcss(), viteSingleFile()],
   resolve: {
     alias: {

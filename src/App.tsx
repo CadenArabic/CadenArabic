@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
+import { CometCard } from "./components/ui/comet-card";
+
 type ServiceEntry = {
   title: string;
   description: string;
@@ -104,21 +106,6 @@ const robloxGames: GameEntry[] = [
     placeId: "78758085598611",
     universeId: "9160234761",
   },
-];
-
-const floatingCubes = [
-  { size: 52, left: "6%", top: "10%", duration: "20s", delay: "-3s" },
-  { size: 84, left: "14%", top: "65%", duration: "26s", delay: "-8s" },
-  { size: 44, left: "24%", top: "18%", duration: "18s", delay: "-4s" },
-  { size: 96, left: "36%", top: "74%", duration: "29s", delay: "-9s" },
-  { size: 68, left: "46%", top: "14%", duration: "21s", delay: "-7s" },
-  { size: 116, left: "58%", top: "28%", duration: "31s", delay: "-6s" },
-  { size: 54, left: "64%", top: "62%", duration: "19s", delay: "-11s" },
-  { size: 72, left: "76%", top: "12%", duration: "22s", delay: "-5s" },
-  { size: 46, left: "82%", top: "72%", duration: "17s", delay: "-10s" },
-  { size: 38, left: "90%", top: "24%", duration: "16s", delay: "-2s" },
-  { size: 62, left: "71%", top: "42%", duration: "24s", delay: "-12s" },
-  { size: 58, left: "28%", top: "48%", duration: "23s", delay: "-1s" },
 ];
 
 const beamLines = [
@@ -497,6 +484,7 @@ function AnimatedCounter({ value, fallback, digitClassName = "" }: AnimatedCount
 
 export function App() {
   const pageRef = useRef<HTMLDivElement>(null);
+  const tracingBeamRef = useRef<HTMLDivElement>(null);
   const [liveStats, setLiveStats] = useState<LiveStatsState>(() => ({
     totalVisits: 0,
     activePlayers: 0,
@@ -561,6 +549,29 @@ export function App() {
       window.removeEventListener("pointerleave", resetPointer);
       window.removeEventListener("blur", resetPointer);
       window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  useEffect(() => {
+    const beamElement = tracingBeamRef.current;
+
+    if (!beamElement) {
+      return;
+    }
+
+    const syncBeam = () => {
+      const pageHeight = Math.max(document.documentElement.scrollHeight - window.innerHeight, 1);
+      const scrollProgress = Math.min(Math.max(window.scrollY / pageHeight, 0), 1);
+      beamElement.style.setProperty("--beam-progress", scrollProgress.toFixed(4));
+    };
+
+    syncBeam();
+    window.addEventListener("scroll", syncBeam, { passive: true });
+    window.addEventListener("resize", syncBeam);
+
+    return () => {
+      window.removeEventListener("scroll", syncBeam);
+      window.removeEventListener("resize", syncBeam);
     };
   }, []);
 
@@ -792,23 +803,11 @@ export function App() {
             />
           ))}
         </div>
+      </div>
 
-        <div className="cube-field">
-          {floatingCubes.map((cube, index) => (
-            <span
-              key={`${cube.left}-${cube.top}-${index}`}
-              className="cube"
-              style={{
-                width: `${cube.size}px`,
-                height: `${cube.size}px`,
-                left: cube.left,
-                top: cube.top,
-                animationDuration: cube.duration,
-                animationDelay: cube.delay,
-              }}
-            />
-          ))}
-        </div>
+      <div ref={tracingBeamRef} className="page-tracing-beam" aria-hidden="true">
+        <span className="page-tracing-beam__rail" />
+        <span className="page-tracing-beam__glow" />
       </div>
 
       <header className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/55 backdrop-blur-xl">
@@ -844,7 +843,8 @@ export function App() {
       </header>
 
       <main id="home" className="pb-12">
-        <section className="mx-auto max-w-6xl px-6 pb-6 pt-16 md:pt-20">
+        <div className="content-with-beam mx-auto max-w-6xl px-6">
+          <section className="pb-6 pt-16 md:pt-20">
           <div className="section-panel section-panel--blue grid gap-10 p-8 md:grid-cols-[1.1fr_0.9fr] md:items-center md:p-10 lg:p-12">
             <div className="space-y-8">
               <div className="hero-badge inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-sm text-cyan-100 shadow-[0_0_40px_rgba(34,211,238,0.12)]">
@@ -905,17 +905,19 @@ export function App() {
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Projects</p>
                   <p className="mt-3 text-2xl font-black text-white">{gamesWorkedOnLabel}</p>
                 </div>
-                <div className="hero-focus-card rounded-2xl border border-cyan-300/20 bg-cyan-400/5 p-4">
+                <div className="hero-focus-card rounded-2xl border border-cyan-300/20 bg-cyan-400/5 p-4 sm:p-5">
                   <p className="text-xs uppercase tracking-[0.18em] text-slate-300">Focus</p>
-                  <p className="mt-3 text-lg font-black leading-snug text-white sm:text-xl">Brainrots Games</p>
+                  <p className="mt-3 max-w-[10ch] text-base font-black leading-tight text-white sm:text-lg">
+                    Brainrots Games
+                  </p>
                 </div>
               </div>
             </div>
           </div>
         </section>
 
-        <section id="about" className="mx-auto max-w-6xl px-6 py-6">
-          <div className="section-panel section-panel--cyan p-8 md:p-10">
+          <section id="about" className="py-6">
+            <div className="section-panel section-panel--cyan p-8 md:p-10">
             <p className="text-sm font-semibold uppercase tracking-[0.25em] text-cyan-100">About</p>
             <h2 className="mt-4 text-3xl font-bold text-white md:text-4xl">Caden Arabic</h2>
             <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-100">
@@ -924,8 +926,8 @@ export function App() {
           </div>
         </section>
 
-        <section id="stats" className="mx-auto max-w-6xl px-6 py-6">
-          <div className="section-panel section-panel--blue p-8 md:p-10">
+          <section id="stats" className="py-6">
+            <div className="section-panel section-panel--blue p-8 md:p-10">
             <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.25em] text-cyan-100">
@@ -958,8 +960,8 @@ export function App() {
           </div>
         </section>
 
-        <section id="services" className="mx-auto max-w-6xl px-6 py-6">
-          <div className="section-panel section-panel--cyan p-8 md:p-10">
+          <section id="services" className="py-6">
+            <div className="section-panel section-panel--cyan p-8 md:p-10">
             <div className="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.25em] text-cyan-200">
@@ -971,23 +973,22 @@ export function App() {
 
             <div className="grid gap-5 md:grid-cols-3">
               {services.map((service) => (
-                <article
-                  key={service.title}
-                  className="rounded-3xl border border-white/10 bg-slate-950/35 p-6 transition duration-300 hover:-translate-y-1 hover:border-cyan-300/35 hover:bg-slate-950/45"
-                >
-                  <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-200/20 bg-cyan-300/10 text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.14)]">
-                    <ServiceIcon type={service.icon} />
-                  </div>
-                  <h3 className="text-xl font-semibold text-white">{service.title}</h3>
-                  <p className="mt-3 leading-7 text-slate-300">{service.description}</p>
-                </article>
+                <CometCard key={service.title} className="h-full">
+                  <article className="h-full rounded-3xl border border-white/10 bg-slate-950/35 p-6 transition duration-300 hover:-translate-y-1 hover:border-cyan-300/35 hover:bg-slate-950/45">
+                    <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-200/20 bg-cyan-300/10 text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.14)]">
+                      <ServiceIcon type={service.icon} />
+                    </div>
+                    <h3 className="text-xl font-semibold text-white">{service.title}</h3>
+                    <p className="mt-3 leading-7 text-slate-300">{service.description}</p>
+                  </article>
+                </CometCard>
               ))}
             </div>
           </div>
         </section>
 
-        <section id="games" className="mx-auto max-w-6xl px-6 py-6">
-          <div className="section-panel section-panel--blue p-8 md:p-10">
+          <section id="games" className="py-6">
+            <div className="section-panel section-panel--blue p-8 md:p-10">
             <div className="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.25em] text-cyan-200">
@@ -999,107 +1000,107 @@ export function App() {
 
             <div className="grid gap-5 lg:grid-cols-3">
               {liveStats.games.map((game, index) => (
-                <article
-                  key={game.placeId}
-                  className="game-card group overflow-hidden rounded-3xl border border-white/10 bg-slate-950/45 backdrop-blur-sm"
-                >
-                  <div className="relative h-52 overflow-hidden border-b border-white/10 bg-slate-900">
-                    {game.thumbnailUrl ? (
-                      <img
-                        src={game.thumbnailUrl}
-                        alt={game.title}
-                        className="game-thumb h-full w-full object-cover"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="game-thumb flex h-full w-full items-center justify-center bg-gradient-to-br from-cyan-500/20 via-slate-900 to-blue-500/20 px-6 text-center">
+                <CometCard key={game.placeId} className="h-full">
+                  <article className="game-card group h-full overflow-hidden rounded-3xl border border-white/10 bg-slate-950/45 backdrop-blur-sm">
+                    <div className="relative h-52 overflow-hidden border-b border-white/10 bg-slate-900">
+                      {game.thumbnailUrl ? (
+                        <img
+                          src={game.thumbnailUrl}
+                          alt={game.title}
+                          className="game-thumb h-full w-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="game-thumb flex h-full w-full items-center justify-center bg-gradient-to-br from-cyan-500/20 via-slate-900 to-blue-500/20 px-6 text-center">
+                          <div>
+                            <p className="text-xs uppercase tracking-[0.25em] text-cyan-100/80">Roblox Game</p>
+                            <p className="mt-3 text-2xl font-black text-white">{String(index + 1).padStart(2, "0")}</p>
+                          </div>
+                        </div>
+                      )}
+                      <div className="game-overlay absolute inset-0" />
+                      <div className="absolute left-4 top-4 rounded-full border border-white/15 bg-slate-950/50 px-3 py-1 text-xs font-medium text-white/90 backdrop-blur-md">
+                        Roblox Experience
+                      </div>
+                    </div>
+
+                    <div className="space-y-5 p-6">
+                      <div className="flex items-start justify-between gap-4">
                         <div>
-                          <p className="text-xs uppercase tracking-[0.25em] text-cyan-100/80">Roblox Game</p>
-                          <p className="mt-3 text-2xl font-black text-white">{String(index + 1).padStart(2, "0")}</p>
+                          <h3 className="text-2xl font-bold text-white">{game.title}</h3>
+                          <p className="mt-2 text-sm text-slate-400">Place ID: {game.placeId}</p>
+                        </div>
+                        <span className="text-4xl font-black text-white/10">{String(index + 1).padStart(2, "0")}</span>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Active Players</p>
+                          <p className="mt-2 text-xl font-semibold text-white">
+                            {formatMetric(game.playing, "Syncing")}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Visits</p>
+                          <p className="mt-2 text-xl font-semibold text-white">
+                            {formatMetric(game.visits, "Syncing")}
+                          </p>
                         </div>
                       </div>
-                    )}
-                    <div className="game-overlay absolute inset-0" />
-                    <div className="absolute left-4 top-4 rounded-full border border-white/15 bg-slate-950/50 px-3 py-1 text-xs font-medium text-white/90 backdrop-blur-md">
-                      Roblox Experience
-                    </div>
-                  </div>
 
-                  <div className="space-y-5 p-6">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <h3 className="text-2xl font-bold text-white">{game.title}</h3>
-                        <p className="mt-2 text-sm text-slate-400">Place ID: {game.placeId}</p>
-                      </div>
-                      <span className="text-4xl font-black text-white/10">{String(index + 1).padStart(2, "0")}</span>
+                      <a
+                        href={game.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="button-hover inline-flex items-center gap-2 rounded-2xl border border-cyan-300/25 bg-cyan-300/10 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:border-cyan-300/45 hover:bg-cyan-300/15"
+                      >
+                        Open game page
+                        <LinkArrowIcon />
+                      </a>
                     </div>
-
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Active Players</p>
-                        <p className="mt-2 text-xl font-semibold text-white">
-                          {formatMetric(game.playing, "Syncing")}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Visits</p>
-                        <p className="mt-2 text-xl font-semibold text-white">
-                          {formatMetric(game.visits, "Syncing")}
-                        </p>
-                      </div>
-                    </div>
-
-                    <a
-                      href={game.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="button-hover inline-flex items-center gap-2 rounded-2xl border border-cyan-300/25 bg-cyan-300/10 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:border-cyan-300/45 hover:bg-cyan-300/15"
-                    >
-                      Open game page
-                      <LinkArrowIcon />
-                    </a>
-                  </div>
-                </article>
+                  </article>
+                </CometCard>
               ))}
             </div>
           </div>
         </section>
 
-        <section id="contact" className="mx-auto max-w-6xl px-6 py-6">
-          <div className="section-panel section-panel--cyan p-8 md:p-10">
-            <p className="text-sm font-semibold uppercase tracking-[0.25em] text-cyan-100">Contact</p>
-            <h2 className="mt-4 text-3xl font-bold text-white md:text-4xl">Let&apos;s connect</h2>
-            <div className="mt-8 grid gap-4 md:grid-cols-3">
-              <a
-                href="https://x.com/Caden__Pro"
-                target="_blank"
-                rel="noreferrer"
-                className="button-hover rounded-3xl border border-white/10 bg-slate-950/35 p-6 transition duration-300 hover:-translate-y-1 hover:border-cyan-200/35 hover:bg-slate-950/45"
-              >
-                <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Twitter (X)</p>
-                <p className="mt-3 text-xl font-bold text-white">@Caden__Pro</p>
-                <p className="mt-2 text-sm text-slate-300">x.com/Caden__Pro</p>
-              </a>
+          <section id="contact" className="py-6">
+            <div className="section-panel section-panel--cyan p-8 md:p-10">
+              <p className="text-sm font-semibold uppercase tracking-[0.25em] text-cyan-100">Contact</p>
+              <h2 className="mt-4 text-3xl font-bold text-white md:text-4xl">Let&apos;s connect</h2>
+              <div className="mt-8 grid gap-4 md:grid-cols-3">
+                <a
+                  href="https://x.com/Caden__Pro"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="button-hover rounded-3xl border border-white/10 bg-slate-950/35 p-6 transition duration-300 hover:-translate-y-1 hover:border-cyan-200/35 hover:bg-slate-950/45"
+                >
+                  <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Twitter (X)</p>
+                  <p className="mt-3 text-xl font-bold text-white">@Caden__Pro</p>
+                  <p className="mt-2 text-sm text-slate-300">x.com/Caden__Pro</p>
+                </a>
 
-              <div className="rounded-3xl border border-white/10 bg-slate-950/35 p-6">
-                <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Discord</p>
-                <p className="mt-3 text-xl font-bold text-white">caden._.arabic</p>
-                <p className="mt-2 text-sm text-slate-300">Add me on Discord</p>
+                <div className="rounded-3xl border border-white/10 bg-slate-950/35 p-6">
+                  <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Discord</p>
+                  <p className="mt-3 text-xl font-bold text-white">caden._.arabic</p>
+                  <p className="mt-2 text-sm text-slate-300">Add me on Discord</p>
+                </div>
+
+                <a
+                  href="https://www.roblox.com/users/867951875/profile"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="button-hover rounded-3xl border border-white/10 bg-slate-950/35 p-6 transition duration-300 hover:-translate-y-1 hover:border-cyan-200/35 hover:bg-slate-950/45"
+                >
+                  <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Roblox</p>
+                  <p className="mt-3 text-xl font-bold text-white">Profile</p>
+                  <p className="mt-2 text-sm text-slate-300">roblox.com/users/867951875/profile</p>
+                </a>
               </div>
-
-              <a
-                href="https://www.roblox.com/users/867951875/profile"
-                target="_blank"
-                rel="noreferrer"
-                className="button-hover rounded-3xl border border-white/10 bg-slate-950/35 p-6 transition duration-300 hover:-translate-y-1 hover:border-cyan-200/35 hover:bg-slate-950/45"
-              >
-                <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Roblox</p>
-                <p className="mt-3 text-xl font-bold text-white">Profile</p>
-                <p className="mt-2 text-sm text-slate-300">roblox.com/users/867951875/profile</p>
-              </a>
             </div>
-          </div>
-        </section>
+          </section>
+        </div>
       </main>
 
       <footer className="border-t border-white/10 px-6 py-6 text-center text-sm text-slate-500">
