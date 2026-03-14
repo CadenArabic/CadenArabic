@@ -40,6 +40,7 @@ type GameEntry = {
   title: string;
   url: string;
   placeId: string;
+  universeId: string | null;
 };
 
 const robloxGames: GameEntry[] = [
@@ -47,46 +48,61 @@ const robloxGames: GameEntry[] = [
     title: "Escape Train for Brainrots",
     url: "https://www.roblox.com/games/93014298159631/Escape-Train-for-Brainrots",
     placeId: "93014298159631",
+    universeId: "9825427575",
   },
   {
     title: "Escape Falling Stairs for Brainrot",
     url: "https://www.roblox.com/games/116990588746086/Escape-Falling-Stairs-for-Brainrot",
     placeId: "116990588746086",
+    universeId: "9715259353",
   },
   {
     title: "Four in a Row",
     url: "https://www.roblox.com/games/118638953131946/Four-in-a-Row",
     placeId: "118638953131946",
+    universeId: "9488122827",
+  },
+  {
+    title: "Bomb Card",
+    url: "https://www.roblox.com/games/80288638708154/Bomb-Card",
+    placeId: "80288638708154",
+    universeId: "9539819854",
+  },
+  {
+    title: "Obby to Brainrots",
+    url: "https://www.roblox.com/games/74344557530102/Obby-to-Brainrots",
+    placeId: "74344557530102",
+    universeId: "9857780163",
   },
   {
     title: "Steal a Celebrity",
     url: "https://www.roblox.com/games/96771164438323/Steal-a-Celebrity",
     placeId: "96771164438323",
+    universeId: "8048361149",
   },
   {
     title: "Feed Your Pets",
     url: "https://www.roblox.com/games/140049315593804/Feed-Your-Pets",
     placeId: "140049315593804",
+    universeId: "8770927660",
   },
   {
-    title: "Samurai Troll Tower",
-    url: "https://www.roblox.com/games/115768905804211/Samurai-Troll-Tower",
+    title: "FREE ADMIN Samurai Troll Tower",
+    url: "https://www.roblox.com/games/115768905804211/FREE-ADMIN-Samurai-Troll-Tower",
     placeId: "115768905804211",
+    universeId: "8158669578",
   },
   {
     title: "Fling a Brainrot",
     url: "https://www.roblox.com/games/93108774146455/Fling-a-Brainrot",
     placeId: "93108774146455",
+    universeId: "8471471873",
   },
   {
     title: "Dangerous RV Driving",
     url: "https://www.roblox.com/games/78758085598611/Dangerous-RV-Driving",
     placeId: "78758085598611",
-  },
-  {
-    title: "Steal Brainrots Trading Plaza",
-    url: "https://www.roblox.com/games/139217467707445/Steal-Brainrots-Trading-Plaza",
-    placeId: "139217467707445",
+    universeId: "9160234761",
   },
 ];
 
@@ -152,7 +168,7 @@ type LiveStatsState = {
 const makeInitialGames = (): TrackedGame[] =>
   robloxGames.map((game) => ({
     ...game,
-    universeId: null,
+    universeId: game.universeId,
     playing: null,
     visits: null,
     thumbnailUrl: null,
@@ -199,6 +215,18 @@ const readText = (value: unknown): string | null => {
   return null;
 };
 
+const readId = (value: unknown): string | null => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(Math.trunc(value));
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value.trim();
+  }
+
+  return null;
+};
+
 const formatMetric = (value: number | null, loadingText = "Loading...") => {
   if (value === null) {
     return loadingText;
@@ -207,34 +235,178 @@ const formatMetric = (value: number | null, loadingText = "Loading...") => {
   return numberFormatter.format(value);
 };
 
-const fetchJsonWithFallback = async (urls: string[]) => {
+type FetchRequest = {
+  url: string;
+  init?: RequestInit;
+};
+
+const expandRequestUrls = (url: string, init?: RequestInit) => {
+  if (init?.method && init.method.toUpperCase() !== "GET") {
+    return [url];
+  }
+
+  return [
+    url,
+    `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  ];
+};
+
+const fetchJsonWithFallback = async (requests: Array<string | FetchRequest>) => {
   let lastError: Error | null = null;
+  const attempted = new Set<string>();
 
-  for (const url of urls) {
-    const controller = new AbortController();
-    const timeoutId = globalThis.setTimeout(() => controller.abort(), 7000);
+  for (const requestEntry of requests) {
+    const request = typeof requestEntry === "string" ? { url: requestEntry } : requestEntry;
 
-    try {
-      const response = await fetch(url, {
-        headers: {
-          accept: "application/json",
-        },
-        signal: controller.signal,
-      });
+    for (const candidateUrl of expandRequestUrls(request.url, request.init)) {
+      const requestKey = `${candidateUrl}::${request.init?.method ?? "GET"}::${typeof request.init?.body === "string" ? request.init.body : ""}`;
 
-      if (!response.ok) {
-        throw new Error(`Request failed with status ${response.status}`);
+      if (attempted.has(requestKey)) {
+        continue;
       }
 
-      return (await response.json()) as unknown;
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error("Failed to fetch Roblox data");
-    } finally {
-      globalThis.clearTimeout(timeoutId);
+      attempted.add(requestKey);
+
+      const controller = new AbortController();
+      const timeoutId = globalThis.setTimeout(() => controller.abort(), 9000);
+
+      try {
+        const response = await fetch(candidateUrl, {
+          ...request.init,
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Request failed with status ${response.status}`);
+        }
+
+        return (await response.json()) as unknown;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error("Failed to fetch Roblox data");
+      } finally {
+        globalThis.clearTimeout(timeoutId);
+      }
     }
   }
 
   throw lastError ?? new Error("Failed to fetch Roblox data");
+};
+
+const readUniverseIdFromPayload = (payload: unknown, placeId?: string) => {
+  if (payload && typeof payload === "object") {
+    const objectPayload = payload as Record<string, unknown>;
+    const directUniverseId = readId(objectPayload.universeId) ?? readId(objectPayload.UniverseId);
+
+    if (directUniverseId) {
+      return directUniverseId;
+    }
+  }
+
+  const entries = readApiArray(payload);
+  const matchedEntry = placeId
+    ? entries.find((entry) => readId(entry.placeId) === placeId || readId(entry.placeID) === placeId)
+    : entries[0];
+
+  if (!matchedEntry) {
+    return null;
+  }
+
+  const nestedUniverse = matchedEntry.universe;
+  const nestedUniverseId = nestedUniverse && typeof nestedUniverse === "object"
+    ? readId((nestedUniverse as Record<string, unknown>).id)
+    : null;
+
+  return readId(matchedEntry.universeId) ?? readId(matchedEntry.UniverseId) ?? nestedUniverseId;
+};
+
+const fetchUniverseIdForPlace = async (placeId: string) => {
+  const legacyUrls = [
+    `https://api.roproxy.com/universes/get-universe-containing-place?placeid=${placeId}`,
+    `https://api.roblox.com/universes/get-universe-containing-place?placeid=${placeId}`,
+  ];
+
+  try {
+    const legacyPayload = await fetchJsonWithFallback(legacyUrls);
+    const legacyUniverseId = readUniverseIdFromPayload(legacyPayload, placeId);
+
+    if (legacyUniverseId) {
+      return legacyUniverseId;
+    }
+  } catch {
+    // Try the newer place details endpoints next.
+  }
+
+  const placeDetailUrls = [
+    `https://games.roproxy.com/v1/games/multiget-place-details?placeIds=${placeId}`,
+    `https://games.roblox.com/v1/games/multiget-place-details?placeIds=${placeId}`,
+  ];
+
+  const placeDetailsPayload = await fetchJsonWithFallback(placeDetailUrls);
+  const placeDetailsUniverseId = readUniverseIdFromPayload(placeDetailsPayload, placeId);
+
+  if (placeDetailsUniverseId) {
+    return placeDetailsUniverseId;
+  }
+
+  throw new Error(`Unable to resolve universe for place ${placeId}`);
+};
+
+const fetchLiveGameEntries = async (universeIds: string[]) => {
+  const joinedUniverseIds = universeIds.join(",");
+  const liveUrls = [
+    `https://games.roproxy.com/v1/games?universeIds=${joinedUniverseIds}`,
+    `https://games.roblox.com/v1/games?universeIds=${joinedUniverseIds}`,
+  ];
+
+  try {
+    const payload = await fetchJsonWithFallback(liveUrls);
+    const entries = readApiArray(payload);
+
+    if (entries.length > 0) {
+      return entries;
+    }
+  } catch {
+    // Fall back to single-universe requests below.
+  }
+
+  const settled = await Promise.all(
+    universeIds.map(async (universeId) => {
+      try {
+        const payload = await fetchJsonWithFallback([
+          `https://games.roproxy.com/v1/games?universeIds=${universeId}`,
+          `https://games.roblox.com/v1/games?universeIds=${universeId}`,
+        ]);
+
+        return readApiArray(payload)[0] ?? null;
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  return settled.filter((entry): entry is RobloxApiItem => entry !== null);
+};
+
+const fetchThumbnailMap = async (universeIds: string[]) => {
+  const thumbnailPayload = await fetchJsonWithFallback([
+    `https://thumbnails.roproxy.com/v1/games/icons?universeIds=${universeIds.join(",")}&returnPolicy=PlaceHolder&size=512x512&format=Png&isCircular=false`,
+    `https://thumbnails.roblox.com/v1/games/icons?universeIds=${universeIds.join(",")}&returnPolicy=PlaceHolder&size=512x512&format=Png&isCircular=false`,
+  ]);
+
+  const thumbnailEntries = readApiArray(thumbnailPayload);
+  const thumbnailByUniverse = new Map<string, string>();
+
+  thumbnailEntries.forEach((item) => {
+    const targetId = readId(item.targetId);
+    const imageUrl = readText(item.imageUrl);
+
+    if (targetId && imageUrl) {
+      thumbnailByUniverse.set(targetId, imageUrl);
+    }
+  });
+
+  return thumbnailByUniverse;
 };
 
 function ServiceIcon({ type }: { type: ServiceEntry["icon"] }) {
@@ -277,6 +449,49 @@ function LinkArrowIcon() {
       <path d="M7 17 17 7" />
       <path d="M9 7h8v8" />
     </svg>
+  );
+}
+
+type AnimatedCounterProps = {
+  value: number | null;
+  fallback: string;
+  digitClassName?: string;
+};
+
+function AnimatedCounter({ value, fallback, digitClassName = "" }: AnimatedCounterProps) {
+  if (value === null) {
+    return <span className="stats-fallback">{fallback}</span>;
+  }
+
+  const formatted = numberFormatter.format(value);
+
+  return (
+    <span className="animated-counter" aria-label={formatted}>
+      {formatted.split("").map((character, index) => {
+        if (/\d/.test(character)) {
+          return (
+            <span key={`${character}-${index}`} className={`digit-slot ${digitClassName}`.trim()} aria-hidden="true">
+              <span
+                className="digit-reel"
+                style={{ transform: `translateY(-${Number(character) * 10}%)` }}
+              >
+                {Array.from({ length: 10 }, (_, digit) => (
+                  <span key={digit} className="digit-face">
+                    {digit}
+                  </span>
+                ))}
+              </span>
+            </span>
+          );
+        }
+
+        return (
+          <span key={`${character}-${index}`} className="digit-separator" aria-hidden="true">
+            {character}
+          </span>
+        );
+      })}
+    </span>
   );
 }
 
@@ -356,31 +571,32 @@ export function App() {
 
     const loadStats = async () => {
       try {
-        const placeIds = robloxGames.map((game) => game.placeId).join(",");
-        const placeDetailsPayload = await fetchJsonWithFallback([
-          `https://games.roproxy.com/v1/games/multiget-place-details?placeIds=${placeIds}`,
-          `https://games.roblox.com/v1/games/multiget-place-details?placeIds=${placeIds}`,
-        ]);
+        const universeResolution = await Promise.all(
+          robloxGames.map(async (game) => {
+            if (game.universeId) {
+              return { placeId: game.placeId, universeId: game.universeId };
+            }
 
-        const placeDetails = readApiArray(placeDetailsPayload);
+            try {
+              const universeId = await fetchUniverseIdForPlace(game.placeId);
+              return { placeId: game.placeId, universeId };
+            } catch {
+              return { placeId: game.placeId, universeId: null };
+            }
+          }),
+        );
+
         const universeIdByPlace = new Map<string, string>();
 
-        placeDetails.forEach((item) => {
-          const placeId = typeof item.placeId === "string" || typeof item.placeId === "number"
-            ? String(item.placeId)
-            : null;
-          const universeId = typeof item.universeId === "string" || typeof item.universeId === "number"
-            ? String(item.universeId)
-            : null;
-
-          if (placeId && universeId) {
-            universeIdByPlace.set(placeId, universeId);
+        universeResolution.forEach((entry) => {
+          if (entry.universeId) {
+            universeIdByPlace.set(entry.placeId, entry.universeId);
           }
         });
 
         const baseTrackedGames = robloxGames.map((game) => ({
           ...game,
-          universeId: universeIdByPlace.get(game.placeId) ?? null,
+          universeId: universeIdByPlace.get(game.placeId) ?? game.universeId ?? null,
           playing: null,
           visits: null,
           thumbnailUrl: null,
@@ -390,32 +606,17 @@ export function App() {
           .map((game) => game.universeId)
           .filter((value): value is string => Boolean(value));
 
-        if (universeIds.length === 0) {
-          throw new Error("No Roblox universe IDs were resolved.");
-        }
-
         const thumbnailByUniverse = new Map<string, string>();
 
-        try {
-          const thumbnailPayload = await fetchJsonWithFallback([
-            `https://thumbnails.roproxy.com/v1/games/icons?universeIds=${universeIds.join(",")}&returnPolicy=PlaceHolder&size=512x512&format=Png&isCircular=false`,
-            `https://thumbnails.roblox.com/v1/games/icons?universeIds=${universeIds.join(",")}&returnPolicy=PlaceHolder&size=512x512&format=Png&isCircular=false`,
-          ]);
-
-          const thumbnailEntries = readApiArray(thumbnailPayload);
-
-          thumbnailEntries.forEach((item) => {
-            const targetId = typeof item.targetId === "string" || typeof item.targetId === "number"
-              ? String(item.targetId)
-              : null;
-            const imageUrl = readText(item.imageUrl);
-
-            if (targetId && imageUrl) {
-              thumbnailByUniverse.set(targetId, imageUrl);
-            }
-          });
-        } catch {
-          // Thumbnails are optional, so the site can continue without them.
+        if (universeIds.length > 0) {
+          try {
+            const thumbnailMap = await fetchThumbnailMap(universeIds);
+            thumbnailMap.forEach((value, key) => {
+              thumbnailByUniverse.set(key, value);
+            });
+          } catch {
+            // Thumbnails are optional, so the site can continue without them.
+          }
         }
 
         const trackedGames = baseTrackedGames.map((game) => ({
@@ -441,18 +642,15 @@ export function App() {
           requestInFlight = true;
 
           try {
-            const livePayload = await fetchJsonWithFallback([
-              `https://games.roproxy.com/v1/games?universeIds=${universeIds.join(",")}`,
-              `https://games.roblox.com/v1/games?universeIds=${universeIds.join(",")}`,
-            ]);
+            if (universeIds.length === 0) {
+              throw new Error("No Roblox universe IDs were resolved.");
+            }
 
-            const liveEntries = readApiArray(livePayload);
+            const liveEntries = await fetchLiveGameEntries(universeIds);
             const liveByUniverse = new Map<string, RobloxApiItem>();
 
             liveEntries.forEach((item) => {
-              const universeId = typeof item.id === "string" || typeof item.id === "number"
-                ? String(item.id)
-                : null;
+              const universeId = readId(item.id);
 
               if (universeId) {
                 liveByUniverse.set(universeId, item);
@@ -471,6 +669,8 @@ export function App() {
               };
             });
 
+            const resolvedVisitsCount = hydratedGames.filter((game) => game.visits !== null).length;
+            const resolvedPlayersCount = hydratedGames.filter((game) => game.playing !== null).length;
             const totalVisits = hydratedGames.reduce((sum, game) => sum + (game.visits ?? 0), 0);
             const activePlayers = hydratedGames.reduce((sum, game) => sum + (game.playing ?? 0), 0);
 
@@ -482,8 +682,8 @@ export function App() {
               totalVisits,
               activePlayers,
               trackedGames: robloxGames.length,
-              updatedAt: Date.now(),
-              status: "live",
+              updatedAt: resolvedVisitsCount > 0 || resolvedPlayersCount > 0 ? Date.now() : null,
+              status: resolvedVisitsCount > 0 || resolvedPlayersCount > 0 ? "live" : "error",
               games: hydratedGames,
             });
           } catch {
@@ -493,6 +693,7 @@ export function App() {
 
             setLiveStats((current) => ({
               ...current,
+              updatedAt: current.updatedAt,
               status: current.updatedAt ? "live" : "error",
             }));
           } finally {
@@ -531,12 +732,11 @@ export function App() {
     };
   }, []);
 
-  const totalVisitsLabel = liveStats.updatedAt !== null
-    ? numberFormatter.format(liveStats.totalVisits)
-    : "Loading...";
-  const activePlayersLabel = liveStats.updatedAt !== null
-    ? numberFormatter.format(liveStats.activePlayers)
-    : "Loading...";
+  const totalVisitsValue = liveStats.updatedAt !== null ? liveStats.totalVisits : null;
+  const totalVisitsFallback = liveStats.status === "error" ? "Unavailable" : "Loading...";
+  const activePlayersValue = liveStats.updatedAt !== null ? liveStats.activePlayers : null;
+  const activePlayersFallback = liveStats.status === "error" ? "Unavailable" : "Loading...";
+  const gamesWorkedOnValue = liveStats.trackedGames;
   const gamesWorkedOnLabel = numberFormatter.format(liveStats.trackedGames);
 
   return (
@@ -705,9 +905,9 @@ export function App() {
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Projects</p>
                   <p className="mt-3 text-2xl font-black text-white">{gamesWorkedOnLabel}</p>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Focus</p>
-                  <p className="mt-3 text-xl font-black leading-tight text-white sm:text-2xl">Brainrots Games</p>
+                <div className="hero-focus-card rounded-2xl border border-cyan-300/20 bg-cyan-400/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-300">Focus</p>
+                  <p className="mt-3 text-lg font-black leading-snug text-white sm:text-xl">Brainrots Games</p>
                 </div>
               </div>
             </div>
@@ -738,15 +938,21 @@ export function App() {
             <div className="stats-strip" aria-live="polite">
               <div className="stats-strip__item">
                 <p className="stats-strip__label">Total Visits :</p>
-                <p className="stats-strip__value">{totalVisitsLabel}</p>
+                <div className="stats-strip__value">
+                  <AnimatedCounter value={totalVisitsValue} fallback={totalVisitsFallback} />
+                </div>
               </div>
               <div className="stats-strip__item">
                 <p className="stats-strip__label">Active Players :</p>
-                <p className="stats-strip__value">{activePlayersLabel}</p>
+                <div className="stats-strip__value">
+                  <AnimatedCounter value={activePlayersValue} fallback={activePlayersFallback} />
+                </div>
               </div>
               <div className="stats-strip__item">
                 <p className="stats-strip__label">Games Worked On :</p>
-                <p className="stats-strip__value">{gamesWorkedOnLabel}</p>
+                <div className="stats-strip__value">
+                  <AnimatedCounter value={gamesWorkedOnValue} fallback={gamesWorkedOnLabel} />
+                </div>
               </div>
             </div>
           </div>
@@ -897,7 +1103,7 @@ export function App() {
       </main>
 
       <footer className="border-t border-white/10 px-6 py-6 text-center text-sm text-slate-500">
-        Caden Arabic • Roblox scripting portfolio • Live totals for visits, active players, and games worked on.
+        Caden Arabic • Roblox scripter • Live totals for visits, active players, and games worked on.
       </footer>
     </div>
   );
