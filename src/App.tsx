@@ -751,7 +751,7 @@ export function App() {
   const gamesWorkedOnLabel = numberFormatter.format(liveStats.trackedGames);
 
   return (
-    <div ref={pageRef} className="portfolio-shell min-h-screen overflow-hidden bg-slate-950 text-white">
+    <div ref={pageRef} className="portfolio-shell min-h-screen overflow-hidden text-white">
       <div className="scene-backdrop absolute inset-0 -z-10 overflow-hidden" aria-hidden="true">
         <div className="cursor-core" />
         <div className="cursor-light" />
