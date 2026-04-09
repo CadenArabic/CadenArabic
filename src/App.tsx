@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { CometCard } from "./components/ui/comet-card";
+
+/* ─── Data ─── */
 
 type ServiceEntry = {
   title: string;
@@ -132,7 +134,11 @@ const particles = [
   { size: 3, left: "42%", top: "8%", duration: "13s", delay: "-10s" },
 ];
 
+const navSections = ["about", "stats", "services", "games", "contact"] as const;
+
 const numberFormatter = new Intl.NumberFormat("en-US");
+
+/* ─── Roblox API Helpers ─── */
 
 type RobloxApiItem = Record<string, unknown>;
 
@@ -396,6 +402,109 @@ const fetchThumbnailMap = async (universeIds: string[]) => {
   return thumbnailByUniverse;
 };
 
+/* ─── Hooks ─── */
+
+function useScrollReveal() {
+  const observerRef = useRef<IntersectionObserver | null>(null);
+
+  useEffect(() => {
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("revealed");
+            observerRef.current?.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.12, rootMargin: "0px 0px -40px 0px" },
+    );
+
+    const elements = document.querySelectorAll(".reveal, .reveal-left, .reveal-right, .reveal-scale");
+    elements.forEach((el) => observerRef.current?.observe(el));
+
+    return () => {
+      observerRef.current?.disconnect();
+    };
+  }, []);
+}
+
+function useActiveSection() {
+  const [activeSection, setActiveSection] = useState<string>("");
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting);
+        if (visible.length > 0) {
+          const topMost = visible.reduce((a, b) =>
+            a.boundingClientRect.top < b.boundingClientRect.top ? a : b,
+          );
+          setActiveSection(topMost.target.id);
+        }
+      },
+      { threshold: 0.3, rootMargin: "-80px 0px -40% 0px" },
+    );
+
+    navSections.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  return activeSection;
+}
+
+function useScrollProgress() {
+  const [progress, setProgress] = useState(0);
+  const [showTopBtn, setShowTopBtn] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const pageHeight = Math.max(document.documentElement.scrollHeight - window.innerHeight, 1);
+      const scrollProgress = Math.min(Math.max(window.scrollY / pageHeight, 0), 1);
+      setProgress(scrollProgress);
+      setShowTopBtn(window.scrollY > 400);
+    };
+
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  return { progress, showTopBtn };
+}
+
+function useTypewriter(text: string, speed = 70, startDelay = 600) {
+  const [displayed, setDisplayed] = useState("");
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    let index = 0;
+    let timeoutId: number;
+
+    const tick = () => {
+      if (index <= text.length) {
+        setDisplayed(text.slice(0, index));
+        index++;
+        timeoutId = window.setTimeout(tick, speed);
+      } else {
+        setDone(true);
+      }
+    };
+
+    timeoutId = window.setTimeout(tick, startDelay);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [text, speed, startDelay]);
+
+  return { displayed, done };
+}
+
+/* ─── Icons ─── */
+
 function ServiceIcon({ type }: { type: ServiceEntry["icon"] }) {
   if (type === "gameplay") {
     return (
@@ -438,6 +547,16 @@ function LinkArrowIcon() {
     </svg>
   );
 }
+
+function ChevronUpIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="2.5">
+      <path d="M18 15l-6-6-6 6" />
+    </svg>
+  );
+}
+
+/* ─── Animated Counter ─── */
 
 type AnimatedCounterProps = {
   value: number | null;
@@ -482,9 +601,12 @@ function AnimatedCounter({ value, fallback, digitClassName = "" }: AnimatedCount
   );
 }
 
+/* ─── App ─── */
+
 export function App() {
   const pageRef = useRef<HTMLDivElement>(null);
   const tracingBeamRef = useRef<HTMLDivElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [liveStats, setLiveStats] = useState<LiveStatsState>(() => ({
     totalVisits: 0,
     activePlayers: 0,
@@ -494,6 +616,21 @@ export function App() {
     games: makeInitialGames(),
   }));
 
+  const activeSection = useActiveSection();
+  const { progress, showTopBtn } = useScrollProgress();
+  const { displayed: typewriterText, done: typewriterDone } = useTypewriter("Roblox Scripter", 80, 800);
+
+  useScrollReveal();
+
+  const scrollToTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
+  const closeMenu = useCallback(() => {
+    setMenuOpen(false);
+  }, []);
+
+  /* Pointer tracking */
   useEffect(() => {
     const element = pageRef.current;
 
@@ -552,6 +689,7 @@ export function App() {
     };
   }, []);
 
+  /* Tracing beam */
   useEffect(() => {
     const beamElement = tracingBeamRef.current;
 
@@ -575,6 +713,7 @@ export function App() {
     };
   }, []);
 
+  /* Live stats */
   useEffect(() => {
     let isActive = true;
     let intervalId = 0;
@@ -626,7 +765,7 @@ export function App() {
               thumbnailByUniverse.set(key, value);
             });
           } catch {
-            // Thumbnails are optional, so the site can continue without them.
+            // Thumbnails are optional.
           }
         }
 
@@ -743,6 +882,19 @@ export function App() {
     };
   }, []);
 
+  /* Lock body scroll when menu open */
+  useEffect(() => {
+    if (menuOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [menuOpen]);
+
   const totalVisitsValue = liveStats.updatedAt !== null ? liveStats.totalVisits : null;
   const totalVisitsFallback = liveStats.status === "error" ? "Unavailable" : "Loading...";
   const activePlayersValue = liveStats.updatedAt !== null ? liveStats.activePlayers : null;
@@ -752,6 +904,13 @@ export function App() {
 
   return (
     <div ref={pageRef} className="portfolio-shell min-h-screen overflow-hidden text-white">
+      {/* Scroll Progress Bar */}
+      <div
+        className="scroll-progress"
+        style={{ transform: `scaleX(${progress})` }}
+      />
+
+      {/* Scene Backdrop */}
       <div className="scene-backdrop absolute inset-0 -z-10 overflow-hidden" aria-hidden="true">
         <div className="cursor-core" />
         <div className="cursor-light" />
@@ -805,11 +964,13 @@ export function App() {
         </div>
       </div>
 
+      {/* Tracing Beam */}
       <div ref={tracingBeamRef} className="page-tracing-beam" aria-hidden="true">
         <span className="page-tracing-beam__rail" />
         <span className="page-tracing-beam__glow" />
       </div>
 
+      {/* Header */}
       <header className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/55 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <a href="#home" className="flex items-center gap-3">
@@ -818,271 +979,317 @@ export function App() {
             </div>
             <div>
               <p className="text-sm font-semibold tracking-wide text-white">Caden Arabic</p>
-              <p className="text-xs text-slate-400">Roblox scripter</p>
+              <p className="text-xs text-slate-400" style={{ fontFamily: "var(--font-mono)" }}>Roblox scripter</p>
             </div>
           </a>
 
-          <nav className="hidden items-center gap-6 text-sm text-slate-300 md:flex">
-            <a href="#about" className="nav-link button-hover transition hover:text-cyan-300">
-              About
-            </a>
-            <a href="#stats" className="nav-link button-hover transition hover:text-cyan-300">
-              Live Stats
-            </a>
-            <a href="#services" className="nav-link button-hover transition hover:text-cyan-300">
-              Services
-            </a>
-            <a href="#games" className="nav-link button-hover transition hover:text-cyan-300">
-              Games
-            </a>
-            <a href="#contact" className="nav-link button-hover transition hover:text-cyan-300">
-              Contact
-            </a>
+          {/* Desktop Nav */}
+          <nav className="hidden items-center gap-2 text-sm text-slate-300 md:flex">
+            {navSections.map((section) => (
+              <a
+                key={section}
+                href={`#${section}`}
+                className={`nav-link button-hover transition hover:text-cyan-300 ${
+                  activeSection === section ? "nav-link--active" : ""
+                }`}
+              >
+                {section === "stats" ? "Live Stats" : section.charAt(0).toUpperCase() + section.slice(1)}
+              </a>
+            ))}
           </nav>
+
+          {/* Mobile Hamburger */}
+          <button
+            className={`hamburger md:hidden ${menuOpen ? "open" : ""}`}
+            onClick={() => setMenuOpen(!menuOpen)}
+            aria-label="Toggle menu"
+          >
+            <span />
+            <span />
+            <span />
+          </button>
         </div>
       </header>
 
+      {/* Mobile Menu */}
+      <div className={`mobile-menu-backdrop ${menuOpen ? "open" : ""}`} onClick={closeMenu} />
+      <div className={`mobile-menu-panel ${menuOpen ? "open" : ""}`}>
+        <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
+          <p className="text-lg font-bold text-white">Menu</p>
+          <button
+            className={`hamburger ${menuOpen ? "open" : ""}`}
+            onClick={closeMenu}
+            aria-label="Close menu"
+          >
+            <span />
+            <span />
+            <span />
+          </button>
+        </div>
+        <nav className="py-2">
+          {navSections.map((section) => (
+            <a
+              key={section}
+              href={`#${section}`}
+              className="mobile-menu-link"
+              onClick={closeMenu}
+            >
+              {section === "stats" ? "Live Stats" : section.charAt(0).toUpperCase() + section.slice(1)}
+            </a>
+          ))}
+        </nav>
+      </div>
+
+      {/* Main Content */}
       <main id="home" className="pb-12">
         <div className="content-with-beam mx-auto max-w-6xl px-6">
+          {/* Hero Section */}
           <section className="pb-6 pt-16 md:pt-20">
-          <div className="section-panel section-panel--blue grid gap-10 p-8 md:grid-cols-[1.1fr_0.9fr] md:items-center md:p-10 lg:p-12">
-            <div className="space-y-8">
-              <div className="hero-badge inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-sm text-cyan-100 shadow-[0_0_40px_rgba(34,211,238,0.12)]">
-                <span className="h-2 w-2 rounded-full bg-cyan-300" />
-                Roblox scripter
-              </div>
+            <div className="section-panel section-panel--blue grid gap-10 p-8 md:grid-cols-[1.1fr_0.9fr] md:items-center md:p-10 lg:p-12">
+              <div className="space-y-8">
+                <div className="reveal hero-badge inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-sm text-cyan-100 shadow-[0_0_40px_rgba(34,211,238,0.12)]">
+                  <span className="hero-badge-dot h-2 w-2 rounded-full bg-cyan-300" />
+                  Roblox scripter
+                </div>
 
-              <div className="space-y-5">
-                <h1 className="max-w-3xl text-4xl font-black tracking-tight text-white sm:text-5xl md:text-6xl">
-                  Caden Arabic
-                  <span className="bg-gradient-to-r from-cyan-200 via-sky-200 to-blue-300 bg-clip-text text-transparent">
-                    {" "}Roblox Scripter
-                  </span>
-                </h1>
-              </div>
+                <div className="space-y-5">
+                  <h1 className="max-w-3xl text-4xl font-black tracking-tight text-white sm:text-5xl md:text-6xl">
+                    Caden Arabic
+                    <br />
+                    <span className="gradient-text-animated">
+                      {typewriterText}
+                      {!typewriterDone && <span className="typewriter-cursor" />}
+                    </span>
+                  </h1>
+                </div>
 
-              <div className="flex flex-col gap-4 sm:flex-row">
-                <a
-                  href="#stats"
-                  className="button-hover inline-flex items-center justify-center rounded-2xl bg-cyan-300 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
-                >
-                  View Live Stats
-                </a>
-                <a
-                  href="#games"
-                  className="button-hover inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white transition hover:border-cyan-300/40 hover:bg-white/10"
-                >
-                  Games Worked On
-                </a>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                {skillPills.map((skill) => (
-                  <span
-                    key={skill}
-                    className="skill-pill rounded-full border border-white/10 bg-white/6 px-4 py-2 text-sm text-slate-100 backdrop-blur-sm"
+                <div className="reveal stagger-2 flex flex-col gap-4 sm:flex-row">
+                  <a
+                    href="#stats"
+                    className="button-hover inline-flex items-center justify-center rounded-2xl bg-cyan-300 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
                   >
-                    {skill}
-                  </span>
+                    View Live Stats
+                  </a>
+                  <a
+                    href="#games"
+                    className="button-hover inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white transition hover:border-cyan-300/40 hover:bg-white/10"
+                  >
+                    Games Worked On
+                  </a>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  {skillPills.map((skill, index) => (
+                    <span
+                      key={skill}
+                      className={`reveal skill-pill rounded-full border border-white/10 bg-white/6 px-4 py-2 text-sm text-slate-100 backdrop-blur-sm stagger-${index + 1}`}
+                    >
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="reveal-right rounded-[1.75rem] border border-white/10 bg-slate-950/45 p-6 shadow-2xl shadow-cyan-950/20 backdrop-blur-xl">
+                <div className="mb-6 flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm text-slate-400" style={{ fontFamily: "var(--font-mono)" }}>Portfolio Snapshot</p>
+                    <h2 className="mt-2 text-2xl font-bold text-white">Caden Arabic</h2>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="reveal-scale stagger-1 rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400" style={{ fontFamily: "var(--font-mono)" }}>Experience</p>
+                    <p className="mt-3 text-2xl font-black text-white">4+ Years</p>
+                  </div>
+                  <div className="reveal-scale stagger-2 rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400" style={{ fontFamily: "var(--font-mono)" }}>Projects</p>
+                    <p className="mt-3 text-2xl font-black text-white">{gamesWorkedOnLabel}</p>
+                  </div>
+                  <div className="reveal-scale stagger-3 hero-focus-card rounded-2xl border border-cyan-300/20 bg-cyan-400/5 p-4 sm:p-5">
+                    <p className="text-xs uppercase tracking-[0.18em] text-slate-300" style={{ fontFamily: "var(--font-mono)" }}>Focus</p>
+                    <p className="mt-3 max-w-[10ch] text-base font-black leading-tight text-white sm:text-lg">
+                      Brainrots Games
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* About Section */}
+          <section id="about" className="py-6">
+            <div className="section-panel section-panel--cyan p-8 md:p-10">
+              <p className="reveal text-sm font-semibold uppercase tracking-[0.25em] text-cyan-100" style={{ fontFamily: "var(--font-mono)" }}>About</p>
+              <h2 className="reveal stagger-1 mt-4 text-3xl font-bold text-white md:text-4xl">Caden Arabic</h2>
+              <p className="reveal stagger-2 mt-5 max-w-3xl text-lg leading-8 text-slate-100">
+                Roblox experienced scripter with 4+ years of experience.
+              </p>
+            </div>
+          </section>
+
+          {/* Stats Section */}
+          <section id="stats" className="py-6">
+            <div className="section-panel section-panel--blue p-8 md:p-10">
+              <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <p className="reveal text-sm font-semibold uppercase tracking-[0.25em] text-cyan-100" style={{ fontFamily: "var(--font-mono)" }}>
+                    Live Stats
+                  </p>
+                  <h2 className="reveal stagger-1 mt-3 text-3xl font-bold text-white">Real-time totals across my Roblox work</h2>
+                </div>
+              </div>
+
+              <div className="reveal stagger-2 stats-strip" aria-live="polite">
+                <div className="stats-strip__item">
+                  <p className="stats-strip__label">Total Visits :</p>
+                  <div className="stats-strip__value">
+                    <AnimatedCounter value={totalVisitsValue} fallback={totalVisitsFallback} />
+                  </div>
+                </div>
+                <div className="stats-strip__item">
+                  <p className="stats-strip__label">Active Players :</p>
+                  <div className="stats-strip__value">
+                    <AnimatedCounter value={activePlayersValue} fallback={activePlayersFallback} />
+                  </div>
+                </div>
+                <div className="stats-strip__item">
+                  <p className="stats-strip__label">Games Worked On :</p>
+                  <div className="stats-strip__value">
+                    <AnimatedCounter value={gamesWorkedOnValue} fallback={gamesWorkedOnLabel} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Services Section */}
+          <section id="services" className="py-6">
+            <div className="section-panel section-panel--cyan p-8 md:p-10">
+              <div className="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <p className="reveal text-sm font-semibold uppercase tracking-[0.25em] text-cyan-200" style={{ fontFamily: "var(--font-mono)" }}>
+                    Services
+                  </p>
+                  <h2 className="reveal stagger-1 mt-3 text-3xl font-bold text-white">What I can script for Roblox games</h2>
+                </div>
+              </div>
+
+              <div className="grid gap-5 md:grid-cols-3">
+                {services.map((service, index) => (
+                  <CometCard key={service.title} className={`reveal-scale stagger-${index + 1} h-full`}>
+                    <article className="h-full rounded-3xl border border-white/10 bg-slate-950/35 p-6 transition duration-300 hover:-translate-y-1 hover:border-cyan-300/35 hover:bg-slate-950/45">
+                      <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-200/20 bg-cyan-300/10 text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.14)]">
+                        <ServiceIcon type={service.icon} />
+                      </div>
+                      <h3 className="text-xl font-semibold text-white">{service.title}</h3>
+                      <p className="mt-3 leading-7 text-slate-300">{service.description}</p>
+                    </article>
+                  </CometCard>
                 ))}
               </div>
             </div>
+          </section>
 
-            <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/45 p-6 shadow-2xl shadow-cyan-950/20 backdrop-blur-xl">
-              <div className="mb-6 flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm text-slate-400">Portfolio Snapshot</p>
-                  <h2 className="mt-2 text-2xl font-bold text-white">Caden Arabic</h2>
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Experience</p>
-                  <p className="mt-3 text-2xl font-black text-white">4+ Years</p>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Projects</p>
-                  <p className="mt-3 text-2xl font-black text-white">{gamesWorkedOnLabel}</p>
-                </div>
-                <div className="hero-focus-card rounded-2xl border border-cyan-300/20 bg-cyan-400/5 p-4 sm:p-5">
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-300">Focus</p>
-                  <p className="mt-3 max-w-[10ch] text-base font-black leading-tight text-white sm:text-lg">
-                    Brainrots Games
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-          <section id="about" className="py-6">
-            <div className="section-panel section-panel--cyan p-8 md:p-10">
-            <p className="text-sm font-semibold uppercase tracking-[0.25em] text-cyan-100">About</p>
-            <h2 className="mt-4 text-3xl font-bold text-white md:text-4xl">Caden Arabic</h2>
-            <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-100">
-              Roblox experienced scripter with 4+ years of experience.
-            </p>
-          </div>
-        </section>
-
-          <section id="stats" className="py-6">
-            <div className="section-panel section-panel--blue p-8 md:p-10">
-            <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.25em] text-cyan-100">
-                  Live Stats
-                </p>
-                <h2 className="mt-3 text-3xl font-bold text-white">Real-time totals across my Roblox work</h2>
-              </div>
-            </div>
-
-            <div className="stats-strip" aria-live="polite">
-              <div className="stats-strip__item">
-                <p className="stats-strip__label">Total Visits :</p>
-                <div className="stats-strip__value">
-                  <AnimatedCounter value={totalVisitsValue} fallback={totalVisitsFallback} />
-                </div>
-              </div>
-              <div className="stats-strip__item">
-                <p className="stats-strip__label">Active Players :</p>
-                <div className="stats-strip__value">
-                  <AnimatedCounter value={activePlayersValue} fallback={activePlayersFallback} />
-                </div>
-              </div>
-              <div className="stats-strip__item">
-                <p className="stats-strip__label">Games Worked On :</p>
-                <div className="stats-strip__value">
-                  <AnimatedCounter value={gamesWorkedOnValue} fallback={gamesWorkedOnLabel} />
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-          <section id="services" className="py-6">
-            <div className="section-panel section-panel--cyan p-8 md:p-10">
-            <div className="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.25em] text-cyan-200">
-                  Services
-                </p>
-                <h2 className="mt-3 text-3xl font-bold text-white">What I can script for Roblox games</h2>
-              </div>
-            </div>
-
-            <div className="grid gap-5 md:grid-cols-3">
-              {services.map((service) => (
-                <CometCard key={service.title} className="h-full">
-                  <article className="h-full rounded-3xl border border-white/10 bg-slate-950/35 p-6 transition duration-300 hover:-translate-y-1 hover:border-cyan-300/35 hover:bg-slate-950/45">
-                    <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-200/20 bg-cyan-300/10 text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.14)]">
-                      <ServiceIcon type={service.icon} />
-                    </div>
-                    <h3 className="text-xl font-semibold text-white">{service.title}</h3>
-                    <p className="mt-3 leading-7 text-slate-300">{service.description}</p>
-                  </article>
-                </CometCard>
-              ))}
-            </div>
-          </div>
-        </section>
-
+          {/* Games Section */}
           <section id="games" className="py-6">
             <div className="section-panel section-panel--blue p-8 md:p-10">
-            <div className="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.25em] text-cyan-200">
-                  Games Worked On
-                </p>
-                <h2 className="mt-3 text-3xl font-bold text-white">Tracked Roblox experiences</h2>
+              <div className="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <p className="reveal text-sm font-semibold uppercase tracking-[0.25em] text-cyan-200" style={{ fontFamily: "var(--font-mono)" }}>
+                    Games Worked On
+                  </p>
+                  <h2 className="reveal stagger-1 mt-3 text-3xl font-bold text-white">Tracked Roblox experiences</h2>
+                </div>
               </div>
-            </div>
 
-            <div className="grid gap-5 lg:grid-cols-3">
-              {liveStats.games.map((game, index) => (
-                <CometCard key={game.placeId} className="h-full">
-                  <article className="game-card group h-full overflow-hidden rounded-3xl border border-white/10 bg-slate-950/45 backdrop-blur-sm">
-                    <div className="relative h-52 overflow-hidden border-b border-white/10 bg-slate-900">
-                      {game.thumbnailUrl ? (
-                        <img
-                          src={game.thumbnailUrl}
-                          alt={game.title}
-                          className="game-thumb h-full w-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="game-thumb flex h-full w-full items-center justify-center bg-gradient-to-br from-cyan-500/20 via-slate-900 to-blue-500/20 px-6 text-center">
+              <div className="grid gap-5 lg:grid-cols-3">
+                {liveStats.games.map((game, index) => (
+                  <CometCard key={game.placeId} className={`reveal-scale stagger-${Math.min(index + 1, 10)} h-full`}>
+                    <article className="game-card group h-full overflow-hidden rounded-3xl border border-white/10 bg-slate-950/45 backdrop-blur-sm">
+                      <div className="relative h-52 overflow-hidden border-b border-white/10 bg-slate-900">
+                        {game.thumbnailUrl ? (
+                          <img
+                            src={game.thumbnailUrl}
+                            alt={game.title}
+                            className="game-thumb h-full w-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="game-thumb flex h-full w-full items-center justify-center bg-gradient-to-br from-cyan-500/20 via-slate-900 to-blue-500/20 px-6 text-center">
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.25em] text-cyan-100/80" style={{ fontFamily: "var(--font-mono)" }}>Roblox Game</p>
+                              <p className="mt-3 text-2xl font-black text-white">{String(index + 1).padStart(2, "0")}</p>
+                            </div>
+                          </div>
+                        )}
+                        <div className="game-overlay absolute inset-0" />
+                        <div className="absolute left-4 top-4 rounded-full border border-white/15 bg-slate-950/50 px-3 py-1 text-xs font-medium text-white/90 backdrop-blur-md" style={{ fontFamily: "var(--font-mono)" }}>
+                          Roblox Experience
+                        </div>
+                      </div>
+
+                      <div className="space-y-5 p-6">
+                        <div className="flex items-start justify-between gap-4">
                           <div>
-                            <p className="text-xs uppercase tracking-[0.25em] text-cyan-100/80">Roblox Game</p>
-                            <p className="mt-3 text-2xl font-black text-white">{String(index + 1).padStart(2, "0")}</p>
+                            <h3 className="text-2xl font-bold text-white">{game.title}</h3>
+                            <p className="mt-2 text-sm text-slate-400" style={{ fontFamily: "var(--font-mono)" }}>Place ID: {game.placeId}</p>
+                          </div>
+                          <span className="text-4xl font-black text-white/10">{String(index + 1).padStart(2, "0")}</span>
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                            <p className="text-xs uppercase tracking-[0.2em] text-slate-400" style={{ fontFamily: "var(--font-mono)" }}>Active Players</p>
+                            <p className="mt-2 text-xl font-semibold text-white">
+                              {formatMetric(game.playing, "Syncing")}
+                            </p>
+                          </div>
+                          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                            <p className="text-xs uppercase tracking-[0.2em] text-slate-400" style={{ fontFamily: "var(--font-mono)" }}>Visits</p>
+                            <p className="mt-2 text-xl font-semibold text-white">
+                              {formatMetric(game.visits, "Syncing")}
+                            </p>
                           </div>
                         </div>
-                      )}
-                      <div className="game-overlay absolute inset-0" />
-                      <div className="absolute left-4 top-4 rounded-full border border-white/15 bg-slate-950/50 px-3 py-1 text-xs font-medium text-white/90 backdrop-blur-md">
-                        Roblox Experience
-                      </div>
-                    </div>
 
-                    <div className="space-y-5 p-6">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <h3 className="text-2xl font-bold text-white">{game.title}</h3>
-                          <p className="mt-2 text-sm text-slate-400">Place ID: {game.placeId}</p>
-                        </div>
-                        <span className="text-4xl font-black text-white/10">{String(index + 1).padStart(2, "0")}</span>
+                        <a
+                          href={game.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="button-hover inline-flex items-center gap-2 rounded-2xl border border-cyan-300/25 bg-cyan-300/10 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:border-cyan-300/45 hover:bg-cyan-300/15"
+                        >
+                          Open game page
+                          <LinkArrowIcon />
+                        </a>
                       </div>
-
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Active Players</p>
-                          <p className="mt-2 text-xl font-semibold text-white">
-                            {formatMetric(game.playing, "Syncing")}
-                          </p>
-                        </div>
-                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Visits</p>
-                          <p className="mt-2 text-xl font-semibold text-white">
-                            {formatMetric(game.visits, "Syncing")}
-                          </p>
-                        </div>
-                      </div>
-
-                      <a
-                        href={game.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="button-hover inline-flex items-center gap-2 rounded-2xl border border-cyan-300/25 bg-cyan-300/10 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:border-cyan-300/45 hover:bg-cyan-300/15"
-                      >
-                        Open game page
-                        <LinkArrowIcon />
-                      </a>
-                    </div>
-                  </article>
-                </CometCard>
-              ))}
+                    </article>
+                  </CometCard>
+                ))}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
 
+          {/* Contact Section */}
           <section id="contact" className="py-6">
             <div className="section-panel section-panel--cyan p-8 md:p-10">
-              <p className="text-sm font-semibold uppercase tracking-[0.25em] text-cyan-100">Contact</p>
-              <h2 className="mt-4 text-3xl font-bold text-white md:text-4xl">Let&apos;s connect</h2>
+              <p className="reveal text-sm font-semibold uppercase tracking-[0.25em] text-cyan-100" style={{ fontFamily: "var(--font-mono)" }}>Contact</p>
+              <h2 className="reveal stagger-1 mt-4 text-3xl font-bold text-white md:text-4xl">Let&apos;s connect</h2>
               <div className="mt-8 grid gap-4 md:grid-cols-3">
                 <a
                   href="https://x.com/Caden__Pro"
                   target="_blank"
                   rel="noreferrer"
-                  className="button-hover rounded-3xl border border-white/10 bg-slate-950/35 p-6 transition duration-300 hover:-translate-y-1 hover:border-cyan-200/35 hover:bg-slate-950/45"
+                  className="reveal-scale stagger-1 button-hover rounded-3xl border border-white/10 bg-slate-950/35 p-6 transition duration-300 hover:-translate-y-1 hover:border-cyan-200/35 hover:bg-slate-950/45"
                 >
-                  <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Twitter (X)</p>
+                  <p className="text-sm uppercase tracking-[0.2em] text-slate-400" style={{ fontFamily: "var(--font-mono)" }}>Twitter (X)</p>
                   <p className="mt-3 text-xl font-bold text-white">@Caden__Pro</p>
                   <p className="mt-2 text-sm text-slate-300">x.com/Caden__Pro</p>
                 </a>
 
-                <div className="rounded-3xl border border-white/10 bg-slate-950/35 p-6">
-                  <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Discord</p>
+                <div className="reveal-scale stagger-2 rounded-3xl border border-white/10 bg-slate-950/35 p-6">
+                  <p className="text-sm uppercase tracking-[0.2em] text-slate-400" style={{ fontFamily: "var(--font-mono)" }}>Discord</p>
                   <p className="mt-3 text-xl font-bold text-white">caden._.arabic</p>
                   <p className="mt-2 text-sm text-slate-300">Add me on Discord</p>
                 </div>
@@ -1091,9 +1298,9 @@ export function App() {
                   href="https://www.roblox.com/users/867951875/profile"
                   target="_blank"
                   rel="noreferrer"
-                  className="button-hover rounded-3xl border border-white/10 bg-slate-950/35 p-6 transition duration-300 hover:-translate-y-1 hover:border-cyan-200/35 hover:bg-slate-950/45"
+                  className="reveal-scale stagger-3 button-hover rounded-3xl border border-white/10 bg-slate-950/35 p-6 transition duration-300 hover:-translate-y-1 hover:border-cyan-200/35 hover:bg-slate-950/45"
                 >
-                  <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Roblox</p>
+                  <p className="text-sm uppercase tracking-[0.2em] text-slate-400" style={{ fontFamily: "var(--font-mono)" }}>Roblox</p>
                   <p className="mt-3 text-xl font-bold text-white">Profile</p>
                   <p className="mt-2 text-sm text-slate-300">roblox.com/users/867951875/profile</p>
                 </a>
@@ -1103,9 +1310,19 @@ export function App() {
         </div>
       </main>
 
-      <footer className="border-t border-white/10 px-6 py-6 text-center text-sm text-slate-500">
+      {/* Footer */}
+      <footer className="border-t border-white/10 px-6 py-6 text-center text-sm text-slate-500" style={{ fontFamily: "var(--font-mono)" }}>
         Caden Arabic • Roblox scripter • Live totals for visits, active players, and games worked on.
       </footer>
+
+      {/* Scroll To Top */}
+      <button
+        className={`scroll-top-btn ${showTopBtn ? "visible" : ""}`}
+        onClick={scrollToTop}
+        aria-label="Scroll to top"
+      >
+        <ChevronUpIcon />
+      </button>
     </div>
   );
 }
